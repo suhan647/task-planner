@@ -20,7 +20,7 @@ function AppContent() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Task Planner</h1>
               <p className="text-sm text-gray-600">
-                Drag across days to create • Click tasks to edit • Drag edges to resize • Use filters to organize
+                Drag across days to create • Click tasks to edit • Drag to move • Use filters to organize
               </p>
             </div>
           </div>

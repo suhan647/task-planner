@@ -16,7 +16,7 @@ interface CalendarDayProps {
   calendarStartDate: Date;
   dayWidth: number;
   onTaskEdit: (task: Task) => void;
-  onTaskResize: (task: Task, newStartDate: Date, newEndDate: Date) => void;
+  onTaskResize: (taskId: string, newStartDate: Date, newEndDate: Date) => void;
   isDragging?: boolean;
   currentDropTarget?: Date | null;
 }
@@ -50,22 +50,23 @@ export function CalendarDay({
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    if (e.button !== 0 || isDraggingTask || isDragging) return;
+    // Check global drag state first, then local drag state
+    if (e.button !== 0 || isDragging || isDraggingTask) return;
     
     onSelectionStart(date.date);
-  }, [date.date, isDraggingTask, isDragging, onSelectionStart]);
+  }, [date.date, isDragging, isDraggingTask, onSelectionStart]);
 
   const handleMouseEnter = useCallback(() => {
-    if (isSelecting && !isDraggingTask && !isDragging) {
+    // Check global drag state first, then local drag state
+    if (isSelecting && !isDragging && !isDraggingTask) {
       onSelectionUpdate(date.date);
     }
-  }, [isSelecting, isDraggingTask, isDragging, date.date, onSelectionUpdate]);
+  }, [isSelecting, isDragging, isDraggingTask, date.date, onSelectionUpdate]);
 
   // Reset local dragging state when global dragging state changes
   useEffect(() => {
-    if (!isDragging) {
-      setIsDraggingTask(false);
-    }
+    // Synchronize local drag state with global drag state
+    setIsDraggingTask(isDragging);
   }, [isDragging]);
 
   // Filter tasks that span this day
@@ -73,6 +74,16 @@ export function CalendarDay({
     const taskDays = getDaysBetween(task.startDate, task.endDate);
     return taskDays.some(taskDay => isSameDay(taskDay, date.date));
   });
+
+  // Debug logging
+  if (dayTasks.length > 0) {
+    console.log('📅 CALENDAR DAY DEBUG:', {
+      date: formatDate(date.date),
+      totalTasks: tasks.length,
+      dayTasks: dayTasks.length,
+      taskIds: dayTasks.map(t => t.id)
+    });
+  }
 
   // Render task bars for each day the task spans
   const taskBars = dayTasks.map((task, index) => {
@@ -89,9 +100,9 @@ export function CalendarDay({
         isLastDay={isLastDay}
         dayWidth={dayWidth}
         onTaskEdit={onTaskEdit}
-        onTaskResize={onTaskResize}
         onDragStart={() => setIsDraggingTask(true)}
         onDragEnd={() => setIsDraggingTask(false)}
+        onTaskResize={onTaskResize}
       />
     );
   });

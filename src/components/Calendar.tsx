@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   DndContext, 
   DragEndEvent, 
@@ -37,8 +37,10 @@ export function Calendar() {
   const [isResizingSelection, setIsResizingSelection] = useState(false);
   const [isButtonClicked, setIsButtonClicked] = useState(false);
   const [currentDropTarget, setCurrentDropTarget] = useState<Date | null>(null);
-  const [dropTargetTimeout, setDropTargetTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [dropTargetTimeout, setDropTargetTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [justFinishedDrag, setJustFinishedDrag] = useState(false);
   
   const { state, dispatch } = useTaskContext();
 
@@ -63,24 +65,61 @@ export function Calendar() {
   // Handle global mouse events for selection
   useEffect(() => {
     const handleGlobalMouseUp = () => {
-      if (isSelecting && selectionStart && selectionEnd && !isDragging) {
-        const startDate = selectionStart <= selectionEnd ? selectionStart : selectionEnd;
-        const endDate = selectionStart <= selectionEnd ? selectionEnd : selectionStart;
+      // Check if any task is currently being resized
+      const isAnyTaskResizing = document.documentElement.hasAttribute('data-task-resizing');
+      
+      // Check if any task is currently being dragged (more robust check)
+      const isAnyTaskDragging = isDragging || state.draggedTask !== null;
+      
+      // Add a small delay to ensure drag states are fully cleared
+      setTimeout(() => {
+        // Re-check drag state after the delay
+        const finalDragState = isDragging || state.draggedTask !== null;
         
-        // Show modal for any selection (single day or multiple days)
-        setModalDates({ startDate, endDate });
-        setShowModal(true);
-      }
-      setIsSelecting(false);
-      setSelectionStart(null);
-      setSelectionEnd(null);
+        console.log('🔍 GLOBAL MOUSE UP (delayed):', {
+          isSelecting,
+          selectionStart: selectionStart?.toISOString(),
+          selectionEnd: selectionEnd?.toISOString(),
+          isDragging,
+          isAnyTaskResizing,
+          draggedTask: state.draggedTask?.id,
+          isAnyTaskDragging,
+          finalDragState,
+          justFinishedDrag,
+          shouldShowModal: isSelecting && selectionStart && selectionEnd && !finalDragState && !isAnyTaskResizing && !justFinishedDrag
+        });
+        
+        if (isSelecting && selectionStart && selectionEnd && !finalDragState && !isAnyTaskResizing && !justFinishedDrag) {
+          const startDate = selectionStart <= selectionEnd ? selectionStart : selectionEnd;
+          const endDate = selectionStart <= selectionEnd ? selectionEnd : selectionStart;
+          
+          console.log('✅ SHOWING TASK CREATION MODAL:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+          
+          // Show modal for any selection (single day or multiple days)
+          setModalDates({ startDate, endDate });
+          setShowModal(true);
+        } else {
+          console.log('❌ NOT SHOWING MODAL:', {
+            reason: !isSelecting ? 'not selecting' : 
+                    !selectionStart ? 'no start date' : 
+                    !selectionEnd ? 'no end date' : 
+                    finalDragState ? 'task dragging' : 
+                    isAnyTaskResizing ? 'task resizing' : 
+                    justFinishedDrag ? 'just finished drag' : 'unknown'
+          });
+        }
+        
+        setIsSelecting(false);
+        setSelectionStart(null);
+        setSelectionEnd(null);
+      }, 50); // 50ms delay to ensure drag states are cleared
     };
 
     if (isSelecting) {
       document.addEventListener('mouseup', handleGlobalMouseUp);
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
     }
-  }, [isSelecting, selectionStart, selectionEnd, isDragging]);
+  }, [isSelecting, selectionStart, selectionEnd, isDragging, state.draggedTask, justFinishedDrag]);
 
   // Track cursor position during drag
   useEffect(() => {
@@ -170,8 +209,21 @@ export function Calendar() {
 
   const monthDates = getMonthDates(currentDate);
   const calendarStartDate = monthDates[0].date;
-  // Use a day width that fills the full day cell
-  const dayWidth = 140; // Adjusted to fill the full day cell width
+  
+  // Calculate day width dynamically for accurate resizing
+  const [dayWidth, setDayWidth] = useState(140);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Calculate actual day width based on calendar container
+  useEffect(() => {
+    if (calendarRef.current) {
+      const calendarWidth = calendarRef.current.offsetWidth;
+      // Assuming 7 days per week, calculate actual day width
+      const calculatedDayWidth = calendarWidth / 7;
+      setDayWidth(calculatedDayWidth);
+      console.log('📏 CALCULATED DAY WIDTH:', { calendarWidth, calculatedDayWidth });
+    }
+  }, [currentDate]); // Recalculate when month changes
 
   // Filter tasks based on current filters
   const filteredTasks = state.tasks.filter(task => {
@@ -188,52 +240,163 @@ export function Calendar() {
     return true;
   });
 
+  // Debug logging
+  console.log('🔍 CALENDAR DEBUG:', {
+    totalTasks: state.tasks.length,
+    filteredTasks: filteredTasks.length,
+    currentDate: currentDate,
+    monthDates: monthDates.length,
+    calendarStartDate: calendarStartDate,
+    calendarEndDate: monthDates[monthDates.length - 1]?.date,
+    taskDates: state.tasks.map(t => ({
+      id: t.id,
+      title: t.title,
+      start: t.startDate,
+      end: t.endDate
+    }))
+  });
+
+  const navigateMonth = useCallback((direction: 'prev' | 'next') => {
+    setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
+  }, []);
+
+  // Navigate to a specific month (for showing tasks after creation)
+  const navigateToMonth = useCallback((date: Date) => {
+    const targetMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    setCurrentDate(targetMonth);
+    console.log('🧭 NAVIGATING TO MONTH:', targetMonth);
+  }, []);
+
   const handleSelectionStart = useCallback((date: Date) => {
-    console.log('Selection start - isDragging:', isDragging);
-    if (isDragging) return; // Prevent selection when dragging tasks
+    console.log('Selection start - isDragging:', isDragging, 'draggedTask:', state.draggedTask?.id);
+    
+    // Prevent selection when dragging tasks or when any task is being dragged
+    if (isDragging || state.draggedTask !== null) return;
+    
+    // Clear any stuck resize attributes that might block task creation
+    if (document.documentElement.hasAttribute('data-task-resizing')) {
+      console.log('🧹 CLEARING STUCK RESIZE ATTRIBUTE');
+      document.documentElement.removeAttribute('data-task-resizing');
+    }
+    
     setIsSelecting(true);
     setSelectionStart(date);
     setSelectionEnd(date);
-  }, [isDragging]);
+  }, [isDragging, state.draggedTask]);
 
   const handleSelectionUpdate = useCallback((date: Date) => {
-    if (isSelecting && !isDragging) {
+    if (isSelecting && !isDragging && state.draggedTask === null) {
       setSelectionEnd(date);
     }
-  }, [isSelecting, isDragging]);
+  }, [isSelecting, isDragging, state.draggedTask]);
 
   const handleSelectionEnd = useCallback(() => {
-    if (isSelecting && selectionStart && selectionEnd && !isDragging) {
+    if (isSelecting && selectionStart && selectionEnd && !isDragging && state.draggedTask === null) {
       const startDate = selectionStart <= selectionEnd ? selectionStart : selectionEnd;
       const endDate = selectionStart <= selectionEnd ? selectionEnd : selectionStart;
+      
+      console.log('✅ SHOWING TASK CREATION MODAL (selection end):', { 
+        startDate: startDate.toISOString(), 
+        endDate: endDate.toISOString() 
+      });
+      
       setModalDates({ startDate, endDate });
       setShowModal(true);
     }
+    
     setIsSelecting(false);
     setSelectionStart(null);
     setSelectionEnd(null);
-  }, [isSelecting, selectionStart, selectionEnd, isDragging]);
+  }, [isSelecting, selectionStart, selectionEnd, isDragging, state.draggedTask]);
 
   const handleModalClose = useCallback(() => {
+    console.log('🔒 MODAL CLOSING:', {
+      showModal,
+      showEditModal,
+      editingTask: editingTask?.id,
+      modalDates,
+      isCreatingTask
+    });
+    
+    // Only auto-navigate if we're closing after creating a task AND the task is not visible
+    if (showModal && modalDates && state.tasks.length > 0 && isCreatingTask) {
+      try {
+        const latestTask = state.tasks[state.tasks.length - 1];
+        
+        // Safety check: ensure the task has valid dates
+        if (!latestTask.startDate || !latestTask.endDate || isNaN(latestTask.startDate.getTime()) || isNaN(latestTask.endDate.getTime())) {
+          console.warn('⚠️ Task has invalid dates, skipping auto-navigation:', latestTask);
+          setShowModal(false);
+          setShowEditModal(false);
+          setEditingTask(null);
+          setModalDates(null);
+          setIsCreatingTask(false);
+          return;
+        }
+        
+        const taskMonth = new Date(latestTask.startDate);
+        const currentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        
+        // Check if the task is already visible in the current month view
+        const monthDates = getMonthDates(currentDate);
+        const calendarStartDate = monthDates[0].date;
+        const calendarEndDate = monthDates[monthDates.length - 1].date;
+        
+        const isTaskVisible = latestTask.startDate >= calendarStartDate && latestTask.endDate <= calendarEndDate;
+        
+        console.log('🔍 TASK VISIBILITY CHECK:', {
+          taskStart: latestTask.startDate.toISOString(),
+          taskEnd: latestTask.endDate.toISOString(),
+          calendarStart: calendarStartDate.toISOString(),
+          calendarEnd: calendarEndDate.toISOString(),
+          isTaskVisible,
+          taskMonth: taskMonth.toISOString(),
+          currentMonth: currentMonth.toISOString()
+        });
+        
+        // Only navigate if:
+        // 1. Task is NOT visible in current month AND
+        // 2. Task is in a different month than current view
+        if (!isTaskVisible && (taskMonth.getMonth() !== currentMonth.getMonth() || taskMonth.getFullYear() !== currentMonth.getFullYear())) {
+          console.log('🧭 AUTO-NAVIGATING to task month:', taskMonth);
+          
+          // Add a small delay to ensure the modal closes properly first
+          setTimeout(() => {
+            navigateToMonth(taskMonth);
+          }, 100);
+        } else {
+          console.log('✅ Task is already visible or in current month - no navigation needed');
+        }
+      } catch (error) {
+        console.error('❌ Error during auto-navigation, staying in current month:', error);
+        // Stay in current month if there's an error
+      }
+    }
+    
     setShowModal(false);
     setShowEditModal(false);
     setEditingTask(null);
     setModalDates(null);
-  }, []);
+    setIsCreatingTask(false);
+  }, [showModal, showEditModal, editingTask, modalDates, state.tasks, currentDate, navigateToMonth, isCreatingTask]);
 
   const handleTaskEdit = useCallback((task: Task) => {
     setEditingTask(task);
     setShowEditModal(true);
   }, []);
 
-  const handleTaskResize = useCallback((task: Task, newStartDate: Date, newEndDate: Date) => {
-    const updatedTask: Task = {
-      ...task,
-      startDate: newStartDate,
-      endDate: newEndDate,
-    };
-    dispatch({ type: 'UPDATE_TASK', task: updatedTask });
-  }, [dispatch]);
+  const handleTaskResize = useCallback((taskId: string, newStartDate: Date, newEndDate: Date) => {
+    // Find the task and update its dates
+    const updatedTask = state.tasks.find(task => task.id === taskId);
+    if (updatedTask) {
+      const taskToUpdate = {
+        ...updatedTask,
+        startDate: newStartDate,
+        endDate: newEndDate,
+      };
+      dispatch({ type: 'UPDATE_TASK', task: taskToUpdate });
+    }
+  }, [state.tasks, dispatch]);
 
   const isDateInSelection = useCallback((date: Date) => {
     if (!isSelecting || !selectionStart || !selectionEnd) return false;
@@ -258,7 +421,9 @@ export function Calendar() {
     const { active, over } = event;
     
     if (!over || !active.data.current?.task) {
+      // Immediately clear all drag states
       setIsDragging(false);
+      dispatch({ type: 'SET_DRAGGED_TASK', task: null });
       setCurrentDropTarget(null);
       return;
     }
@@ -278,7 +443,9 @@ export function Calendar() {
         console.log('Using fallback target date:', over.id);
       } catch (error) {
         console.error('Invalid date from over.id:', over.id);
+        // Immediately clear all drag states
         setIsDragging(false);
+        dispatch({ type: 'SET_DRAGGED_TASK', task: null });
         setCurrentDropTarget(null);
         return;
       }
@@ -324,7 +491,9 @@ export function Calendar() {
     // If we still don't have a target date, abort
     if (!targetDate) {
       console.error('No valid target date found');
+      // Immediately clear all drag states
       setIsDragging(false);
+      dispatch({ type: 'SET_DRAGGED_TASK', task: null });
       setCurrentDropTarget(null);
       return;
     }
@@ -336,7 +505,9 @@ export function Calendar() {
     
     if (targetDate < calendarStartDate || targetDate > calendarEndDate) {
       console.error('Target date is outside visible calendar range:', targetDate);
+      // Immediately clear all drag states
       setIsDragging(false);
+      dispatch({ type: 'SET_DRAGGED_TASK', task: null });
       setCurrentDropTarget(null);
       return;
     }
@@ -357,12 +528,30 @@ export function Calendar() {
     };
     
     dispatch({ type: 'UPDATE_TASK', task: updatedTask });
-    dispatch({ type: 'SET_DRAGGED_TASK', task: null });
     
-    // Reset all dragging states to ensure selection works properly
-    resetAllDraggingStates();
+    // CRITICAL: Clear all drag states BEFORE any other operations
+    console.log('🧹 CLEARING ALL DRAG STATES after task update');
+    setIsDragging(false);
+    dispatch({ type: 'SET_DRAGGED_TASK', task: null });
     setCurrentDropTarget(null);
-  }, [dispatch, resetAllDraggingStates, currentDate, currentDropTarget, cursorPosition]);
+    
+    // Set flag to prevent modal from opening immediately after drag
+    setJustFinishedDrag(true);
+    
+    // Force a re-render to ensure all states are cleared
+    setTimeout(() => {
+      setIsDragging(false);
+      dispatch({ type: 'SET_DRAGGED_TASK', task: null });
+      console.log('🧹 FORCED CLEAR of drag states after timeout');
+      
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        setJustFinishedDrag(false);
+        console.log('🧹 CLEARED justFinishedDrag flag');
+      }, 100);
+    }, 0);
+    
+  }, [dispatch, currentDate, currentDropTarget, cursorPosition]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
@@ -401,10 +590,6 @@ export function Calendar() {
     setIsDragging(false);
     dispatch({ type: 'SET_DRAGGED_TASK', task: null });
   }, [dispatch]);
-
-  const navigateMonth = useCallback((direction: 'prev' | 'next') => {
-    setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
-  }, []);
   return (
     <div 
       className="flex-1 flex flex-col bg-white"
@@ -451,7 +636,7 @@ export function Calendar() {
         collisionDetection={closestCenter}
       >
         {/* Calendar Grid */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" ref={calendarRef}>
           <div className="min-w-full">
             {/* Days of week header */}
             <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
@@ -481,9 +666,9 @@ export function Calendar() {
                   calendarStartDate={calendarStartDate}
                   dayWidth={dayWidth}
                   onTaskEdit={handleTaskEdit}
-                  onTaskResize={handleTaskResize}
                   isDragging={isDragging}
                   currentDropTarget={currentDropTarget}
+                  onTaskResize={handleTaskResize}
                 />
               ))}
               

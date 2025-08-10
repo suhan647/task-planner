@@ -159,7 +159,7 @@ export function TaskTooltip({ task, isVisible, position }: TaskTooltipProps) {
 
         {/* Actions hint */}
         <div className="text-xs text-gray-400 border-t border-gray-700 pt-2">
-          💡 Click to edit • Drag to move • Drag edges to resize
+          💡 Click to edit • Drag to move
         </div>
       </div>
     </div>

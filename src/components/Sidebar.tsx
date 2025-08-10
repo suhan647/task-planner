@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TaskCategory } from '../types/Task';
 import { useTaskContext } from '../context/TaskContext';
-import { Filter, Calendar, Clock } from 'lucide-react';
+import { Filter, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const categories: TaskCategory[] = ['To Do', 'In Progress', 'Review', 'Completed'];
 const timeFrames = [
@@ -12,6 +12,7 @@ const timeFrames = [
 
 export function Sidebar() {
   const { state, dispatch } = useTaskContext();
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const handleCategoryChange = (category: TaskCategory, checked: boolean) => {
     const newCategories = checked
@@ -33,88 +34,129 @@ export function Sidebar() {
     });
   };
 
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
   return (
-    <div className="w-80 bg-white shadow-lg p-6 overflow-y-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <Filter className="h-5 w-5 text-gray-600" />
-        <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-      </div>
-
-      {/* Category Filters */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <Calendar className="h-4 w-4 text-gray-500" />
-          <h3 className="font-medium text-gray-900">Categories</h3>
-        </div>
-        <div className="space-y-3">
-          {categories.map(category => (
-            <label
-              key={category}
-              className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
-            >
-              <input
-                type="checkbox"
-                checked={state.filters.categories.includes(category)}
-                onChange={(e) => handleCategoryChange(category, e.target.checked)}
-                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700 font-medium">{category}</span>
-              <div className={`w-3 h-3 rounded-full ml-auto ${getCategoryColor(category)}`} />
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Time-Based Filters */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-4 w-4 text-gray-500" />
-          <h3 className="font-medium text-gray-900">Time Frame</h3>
-        </div>
-        <div className="space-y-3">
-          {timeFrames.map(({ key, label }) => (
-            <label
-              key={key}
-              className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
-            >
-              <input
-                type="radio"
-                name="timeFrame"
-                checked={state.filters.timeFrame === key}
-                onChange={() => handleTimeFrameChange(key)}
-                className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
-              />
-              <span className="text-sm text-gray-700">{label}</span>
-            </label>
-          ))}
-        </div>
-        {state.filters.timeFrame && (
-          <button
-            onClick={() => dispatch({ type: 'SET_FILTERS', filters: { timeFrame: null } })}
-            className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
-          >
-            Clear time filter
-          </button>
+    <div className={`${isCollapsed ? 'w-16' : 'w-80'} bg-white shadow-lg transition-all duration-300 ease-in-out relative`}>
+      {/* Toggle Button */}
+      <button
+        onClick={toggleSidebar}
+        className="absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1.5 shadow-md hover:bg-gray-50 transition-colors z-10"
+      >
+        {isCollapsed ? (
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        ) : (
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
         )}
-      </div>
+      </button>
 
-      {/* Task Statistics */}
-      <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h3 className="font-medium text-gray-900 mb-3">Task Overview</h3>
-        <div className="space-y-2 text-sm">
-          {categories.map(category => {
-            const count = state.tasks.filter(task => task.category === category).length;
-            return (
-              <div key={category} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${getCategoryColor(category)}`} />
-                  <span className="text-gray-700">{category}</span>
-                </div>
-                <span className="font-medium text-gray-900">{count}</span>
+      <div className={`${isCollapsed ? 'p-3' : 'p-6'} overflow-y-auto h-full`}>
+        {!isCollapsed && (
+          <>
+            <div className="flex items-center gap-2 mb-6">
+              <Filter className="h-5 w-5 text-gray-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+            </div>
+
+            {/* Category Filters */}
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="h-4 w-4 text-gray-500" />
+                <h3 className="font-medium text-gray-900">Categories</h3>
               </div>
-            );
-          })}
-        </div>
+              <div className="space-y-3">
+                {categories.map(category => (
+                  <label
+                    key={category}
+                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={state.filters.categories.includes(category)}
+                      onChange={(e) => handleCategoryChange(category, e.target.checked)}
+                      className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700 font-medium">{category}</span>
+                    <div className={`w-3 h-3 rounded-full ml-auto ${getCategoryColor(category)}`} />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Time-Based Filters */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="h-4 w-4 text-gray-500" />
+                <h3 className="font-medium text-gray-900">Time Frame</h3>
+              </div>
+              <div className="space-y-3">
+                {timeFrames.map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                  >
+                    <input
+                      type="radio"
+                      name="timeFrame"
+                      checked={state.filters.timeFrame === key}
+                      onChange={() => handleTimeFrameChange(key)}
+                      className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+              {state.filters.timeFrame && (
+                <button
+                  onClick={() => dispatch({ type: 'SET_FILTERS', filters: { timeFrame: null } })}
+                  className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                >
+                  Clear time filter
+                </button>
+              )}
+            </div>
+
+            {/* Task Statistics */}
+            <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-medium text-gray-900 mb-3">Task Overview</h3>
+              <div className="space-y-2 text-sm">
+                {categories.map(category => {
+                  const count = state.tasks.filter(task => task.category === category).length;
+                  return (
+                    <div key={category} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${getCategoryColor(category)}`} />
+                        <span className="text-gray-700">{category}</span>
+                      </div>
+                      <span className="font-medium text-gray-900">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Collapsed State - Show only icons */}
+        {isCollapsed && (
+          <div className="space-y-6">
+            <div className="flex justify-center">
+              <Filter className="h-6 w-6 text-gray-600" />
+            </div>
+            <div className="space-y-4">
+              {categories.map(category => (
+                <div key={category} className="flex justify-center">
+                  <div className={`w-4 h-4 rounded-full ${getCategoryColor(category)}`} />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-center">
+              <Clock className="h-6 w-6 text-gray-500" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
