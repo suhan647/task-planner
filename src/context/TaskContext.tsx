@@ -7,6 +7,7 @@ interface TaskState {
   draggedTask: Task | null;
   isCreating: boolean;
   creationDates: { startDate: Date; endDate: Date } | null;
+  searchQuery: string;
 }
 
 type TaskAction =
@@ -14,6 +15,7 @@ type TaskAction =
   | { type: 'UPDATE_TASK'; task: Task }
   | { type: 'DELETE_TASK'; taskId: string }
   | { type: 'SET_FILTERS'; filters: Partial<TaskFilters> }
+  | { type: 'SET_SEARCH_QUERY'; query: string }
   | { type: 'SET_DRAGGED_TASK'; task: Task | null }
   | { type: 'START_CREATION'; startDate: Date; endDate: Date }
   | { type: 'CANCEL_CREATION' }
@@ -29,6 +31,7 @@ const initialState: TaskState = {
   draggedTask: null,
   isCreating: false,
   creationDates: null,
+  searchQuery: '',
 };
 
 function taskReducer(state: TaskState, action: TaskAction): TaskState {
@@ -59,6 +62,11 @@ function taskReducer(state: TaskState, action: TaskAction): TaskState {
       return {
         ...state,
         filters: { ...state.filters, ...action.filters },
+      };
+    case 'SET_SEARCH_QUERY':
+      return {
+        ...state,
+        searchQuery: action.query,
       };
     case 'SET_DRAGGED_TASK':
       return {
@@ -96,13 +104,66 @@ function taskReducer(state: TaskState, action: TaskAction): TaskState {
 const TaskContext = createContext<{
   state: TaskState;
   dispatch: React.Dispatch<TaskAction>;
+  getFilteredTasks: () => Task[];
 } | null>(null);
 
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(taskReducer, initialState);
 
+  // Helper function to get filtered tasks
+  const getFilteredTasks = () => {
+    let filteredTasks = [...state.tasks];
+
+    // Apply search filter
+    if (state.searchQuery.trim()) {
+      const query = state.searchQuery.toLowerCase();
+      filteredTasks = filteredTasks.filter(task =>
+        task.title.toLowerCase().includes(query) ||
+        task.category.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply category filter
+    if (state.filters.categories.length > 0) {
+      filteredTasks = filteredTasks.filter(task =>
+        state.filters.categories.includes(task.category)
+      );
+    }
+
+    // Apply time frame filter
+    if (state.filters.timeFrame) {
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      let endOfPeriod = new Date(startOfWeek);
+      switch (state.filters.timeFrame) {
+        case 'week':
+          endOfPeriod.setDate(startOfWeek.getDate() + 7);
+          break;
+        case 'twoWeeks':
+          endOfPeriod.setDate(startOfWeek.getDate() + 14);
+          break;
+        case 'threeWeeks':
+          endOfPeriod.setDate(startOfWeek.getDate() + 21);
+          break;
+      }
+
+      filteredTasks = filteredTasks.filter(task =>
+        task.startDate >= startOfWeek && task.startDate < endOfPeriod
+      );
+    }
+
+    return filteredTasks;
+  };
+
   return (
-    <TaskContext.Provider value={{ state, dispatch }}>
+    <TaskContext.Provider value={{ 
+      state, 
+      dispatch, 
+      getFilteredTasks 
+    }}>
       {children}
     </TaskContext.Provider>
   );

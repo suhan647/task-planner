@@ -6,6 +6,7 @@ import { Task } from '../types/Task';
 import { getTaskColor, getTaskTextColor } from '../utils/taskUtils';
 import { formatDate, getDaysBetween, isSameDay } from '../utils/dateUtils';
 import { TaskTooltip } from './TaskTooltip';
+import { useTaskContext } from '../context/TaskContext';
 
 interface TaskBarProps {
   task: Task;
@@ -30,6 +31,7 @@ export function TaskBar({
   onDragEnd,
   onTaskResize
 }: TaskBarProps) {
+  const { state } = useTaskContext();
   const [isDraggingTask, setIsDraggingTask] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -46,6 +48,24 @@ export function TaskBar({
   const taskDays = getDaysBetween(task.startDate, task.endDate);
   const taskDuration = taskDays.length;
   const showResizeHandles = taskDuration >= 1; // Show handles for all tasks, including single-day
+
+  // Highlight search matches
+  const highlightSearchMatch = (text: string, searchQuery: string) => {
+    if (!searchQuery.trim()) return text;
+    
+    const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 text-black px-0.5 rounded">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
+  };
 
   const {
     attributes,
@@ -374,7 +394,7 @@ export function TaskBar({
         {/* Centered task title only */}
         <div className="w-full h-full flex items-center justify-center pointer-events-none">
           <span className={`text-xs font-medium ${!isFirstDay ? 'opacity-0' : ''}`}>
-            {task.title}
+            {highlightSearchMatch(task.title, state.searchQuery)}
           </span>
         </div>
         

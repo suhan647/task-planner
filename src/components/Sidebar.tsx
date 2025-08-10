@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TaskCategory } from '../types/Task';
 import { useTaskContext } from '../context/TaskContext';
-import { Filter, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Filter, Calendar, Clock, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 const categories: TaskCategory[] = ['To Do', 'In Progress', 'Review', 'Completed'];
 const timeFrames = [
@@ -11,8 +11,11 @@ const timeFrames = [
 ];
 
 export function Sidebar() {
-  const { state, dispatch } = useTaskContext();
+  const { state, dispatch, getFilteredTasks } = useTaskContext();
   const [isCollapsed, setIsCollapsed] = useState(true);
+
+  // Get filtered tasks for statistics
+  const filteredTasks = getFilteredTasks();
 
   const handleCategoryChange = (category: TaskCategory, checked: boolean) => {
     const newCategories = checked
@@ -59,6 +62,25 @@ export function Sidebar() {
               <Filter className="h-5 w-5 text-gray-600" />
               <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
             </div>
+
+            {/* Search Results Summary */}
+            {state.searchQuery && (
+              <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Search className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Search Results</span>
+                </div>
+                <p className="text-xs text-blue-700">
+                  "{state.searchQuery}" - {filteredTasks.length} of {state.tasks.length} tasks
+                </p>
+                <button
+                  onClick={() => dispatch({ type: 'SET_SEARCH_QUERY', query: '' })}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
 
             {/* Category Filters */}
             <div className="mb-8">
@@ -120,21 +142,34 @@ export function Sidebar() {
 
             {/* Task Statistics */}
             <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">Task Overview</h3>
+              <h3 className="font-medium text-gray-900 mb-3">
+                {state.searchQuery ? 'Filtered Tasks' : 'Task Overview'}
+              </h3>
               <div className="space-y-2 text-sm">
                 {categories.map(category => {
-                  const count = state.tasks.filter(task => task.category === category).length;
+                  const count = filteredTasks.filter(task => task.category === category).length;
+                  const totalCount = state.tasks.filter(task => task.category === category).length;
                   return (
                     <div key={category} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className={`w-3 h-3 rounded-full ${getCategoryColor(category)}`} />
                         <span className="text-gray-700">{category}</span>
                       </div>
-                      <span className="font-medium text-gray-900">{count}</span>
+                      <span className="font-medium text-gray-900">
+                        {state.searchQuery ? `${count}/${totalCount}` : count}
+                      </span>
                     </div>
                   );
                 })}
               </div>
+              {state.searchQuery && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Total Filtered:</span>
+                    <span className="font-medium text-gray-900">{filteredTasks.length}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -145,6 +180,11 @@ export function Sidebar() {
             <div className="flex justify-center">
               <Filter className="h-6 w-6 text-gray-600" />
             </div>
+            {state.searchQuery && (
+              <div className="flex justify-center">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" title="Search active" />
+              </div>
+            )}
             <div className="space-y-4">
               {categories.map(category => (
                 <div key={category} className="flex justify-center">

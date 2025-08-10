@@ -43,6 +43,7 @@ export function Calendar() {
   const [justFinishedDrag, setJustFinishedDrag] = useState(false);
   
   const { state, dispatch } = useTaskContext();
+  const { getFilteredTasks } = useTaskContext();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -225,30 +226,19 @@ export function Calendar() {
     }
   }, [currentDate]); // Recalculate when month changes
 
-  // Filter tasks based on current filters
-  const filteredTasks = state.tasks.filter(task => {
-    // Category filter
-    if (state.filters.categories.length > 0 && !state.filters.categories.includes(task.category)) {
-      return false;
-    }
-    
-    // Time frame filter
-    if (state.filters.timeFrame && !isTaskInTimeFrame(task.startDate, task.endDate, state.filters.timeFrame)) {
-      return false;
-    }
-    
-    return true;
-  });
+  // Get filtered tasks from context
+  const filteredTasks = getFilteredTasks();
 
   // Debug logging
   console.log('🔍 CALENDAR DEBUG:', {
     totalTasks: state.tasks.length,
     filteredTasks: filteredTasks.length,
+    searchQuery: state.searchQuery,
     currentDate: currentDate,
     monthDates: monthDates.length,
     calendarStartDate: calendarStartDate,
     calendarEndDate: monthDates[monthDates.length - 1]?.date,
-    taskDates: state.tasks.map(t => ({
+    taskDates: filteredTasks.map(t => ({
       id: t.id,
       title: t.title,
       start: t.startDate,
@@ -623,8 +613,21 @@ export function Calendar() {
         </div>
         
         <div className="text-sm text-gray-600">
-          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
-          {state.filters.categories.length > 0 && ' (filtered)'}
+          {state.searchQuery ? (
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 font-medium">
+                🔍 {filteredTasks.length} of {state.tasks.length} tasks
+              </span>
+              <span className="text-gray-500">
+                matching "{state.searchQuery}"
+              </span>
+            </div>
+          ) : (
+            <span>
+              {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+              {state.filters.categories.length > 0 && ' (filtered)'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -707,6 +710,28 @@ export function Calendar() {
                 <div className="text-xs text-gray-500">
                   💡 Tip: Use the filters on the left to organize your tasks
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Search results empty state */}
+          {state.searchQuery && filteredTasks.length === 0 && (
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-gray-500 z-10">
+              <div className="bg-white bg-opacity-90 rounded-lg p-6 shadow-lg border border-gray-200">
+                <div className="text-3xl mb-3">🔍</div>
+                <h3 className="text-lg font-medium text-gray-700 mb-2">No tasks found</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  No tasks match "{state.searchQuery}"
+                </p>
+                <div className="text-xs text-gray-500">
+                  Try adjusting your search terms or clearing the search
+                </div>
+                <button
+                  onClick={() => dispatch({ type: 'SET_SEARCH_QUERY', query: '' })}
+                  className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Clear Search
+                </button>
               </div>
             </div>
           )}
