@@ -35,6 +35,7 @@ export function TaskBar({
   const [isDraggingTask, setIsDraggingTask] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [isHoveringResize, setIsHoveringResize] = useState(false);
 
   const {
     attributes,
@@ -48,7 +49,7 @@ export function TaskBar({
       type: 'task',
       task,
     },
-    disabled: isResizing !== null,
+    disabled: isResizing !== null || isHoveringResize,
   });
 
   // Handle drag start/end
@@ -75,6 +76,9 @@ export function TaskBar({
   const handleResizeStart = (edge: 'start' | 'end', e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    // Prevent any drag operations
+    setIsDraggingTask(false);
     setIsResizing(edge);
     setResizeStartX(e.clientX);
     setOriginalDates({ start: new Date(task.startDate), end: new Date(task.endDate) });
@@ -115,6 +119,7 @@ export function TaskBar({
       upEvent.stopPropagation();
       setIsResizing(null);
       setOriginalDates(null);
+      setIsHoveringResize(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -124,7 +129,7 @@ export function TaskBar({
   };
 
   const handleTaskClick = (e: React.MouseEvent) => {
-    if (isResizing || isDraggingTask || isDragging) return;
+    if (isResizing || isDraggingTask || isDragging || isHoveringResize) return;
     e.stopPropagation();
     onTaskEdit(task);
   };
@@ -139,6 +144,7 @@ export function TaskBar({
   const handleMouseLeave = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowTooltip(false);
+    setIsHoveringResize(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -149,7 +155,7 @@ export function TaskBar({
   };
 
   // Don't show drag listeners when resizing
-  const dragListeners = isResizing !== null ? {} : listeners;
+  const dragListeners = (isResizing !== null || isHoveringResize) ? {} : listeners;
 
   return (
     <>
@@ -167,7 +173,7 @@ export function TaskBar({
           ${isFirstDay && taskDuration > 1 ? 'rounded-l-md' : 'rounded-l-none'}
           ${isLastDay && taskDuration > 1 ? 'rounded-r-md' : 'rounded-r-none'}
           ${!isFirstDay && taskDuration > 1 ? 'rounded-l-none rounded-r-none' : ''}
-          ${isResizing ? 'cursor-ew-resize z-30' : isDraggingTask ? 'cursor-grabbing' : 'cursor-grab'}
+          ${isResizing || isHoveringResize ? 'cursor-ew-resize z-30' : isDraggingTask ? 'cursor-grabbing' : 'cursor-grab'}
         `}
         style={{ 
           ...style, 
@@ -176,24 +182,22 @@ export function TaskBar({
         }}
         onClick={handleTaskClick}
         onMouseDown={(e) => {
-          // Always stop propagation for task bar mouse events
-          e.stopPropagation();
-          e.preventDefault();
+          // Only prevent if not hovering over resize handles
+          if (!isHoveringResize) {
+            e.stopPropagation();
+          }
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
-        onMouseUp={(e) => {
-          // Always stop propagation for task bar mouse events
-          e.stopPropagation();
-          e.preventDefault();
-        }}
       >
         {/* Left resize handle */}
         {isFirstDay && (
           <div
-            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-black hover:bg-opacity-30 rounded-l-md transition-all z-50"
+            className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-transparent hover:bg-black hover:bg-opacity-20 rounded-l-md transition-all z-50"
             onMouseDown={(e) => handleResizeStart('start', e)}
+            onMouseEnter={() => setIsHoveringResize(true)}
+            onMouseLeave={() => setIsHoveringResize(false)}
             onMouseUp={(e) => {
               e.stopPropagation();
               e.preventDefault();
@@ -213,8 +217,10 @@ export function TaskBar({
         {/* Right resize handle */}
         {isLastDay && (
           <div
-            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-black hover:bg-opacity-30 rounded-r-md transition-all z-50"
+            className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-transparent hover:bg-black hover:bg-opacity-20 rounded-r-md transition-all z-50"
             onMouseDown={(e) => handleResizeStart('end', e)}
+            onMouseEnter={() => setIsHoveringResize(true)}
+            onMouseLeave={() => setIsHoveringResize(false)}
             onMouseUp={(e) => {
               e.stopPropagation();
               e.preventDefault();
