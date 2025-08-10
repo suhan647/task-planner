@@ -157,6 +157,9 @@ export function TaskBar({
   const handleMouseLeave = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowTooltip(false);
+    // if (!isResizing) {
+    //   setIsHoveringResize(false);
+    // }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -461,7 +464,7 @@ export function TaskBar({
       {/* Custom Tooltip */}
       <TaskTooltip
         task={task}
-        isVisible={showTooltip && !isDragging && !isResizing}
+        isVisible={showTooltip && !isDragging && !isResizing && !activeResizeHandle}
         position={tooltipPosition}
       />
     </div>
