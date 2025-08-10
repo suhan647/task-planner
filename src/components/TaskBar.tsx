@@ -38,7 +38,7 @@ export function TaskBar({
   const [resizeStartX, setResizeStartX] = useState(0);
   const [resizeStartDates, setResizeStartDates] = useState<{ startDate: Date; endDate: Date } | null>(null);
 
-  const taskRef = useRef<HTMLDivElement>(null);
+  const taskRef = useRef<HTMLDivElement | null>(null);
   const leftHandleRef = useRef<HTMLDivElement>(null);
   const rightHandleRef = useRef<HTMLDivElement>(null);
 
@@ -342,11 +342,8 @@ export function TaskBar({
       <div
         ref={(node) => {
           setNodeRef(node);
-          if (taskRef.current !== node) {
-            taskRef.current = node;
-          }
+          taskRef.current = node;
         }}
-        style={style}
         {...listeners}
         {...attributes}
         onMouseDown={handleDragStart}
@@ -464,7 +461,7 @@ export function TaskBar({
       {/* Custom Tooltip */}
       <TaskTooltip
         task={task}
-        isVisible={showTooltip && !isDragging && !isResizing && !activeResizeHandle}
+        isVisible={showTooltip && !isDragging && !isResizing}
         position={tooltipPosition}
       />
     </div>
