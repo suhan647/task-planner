@@ -17,7 +17,8 @@ type TaskAction =
   | { type: 'SET_DRAGGED_TASK'; task: Task | null }
   | { type: 'START_CREATION'; startDate: Date; endDate: Date }
   | { type: 'CANCEL_CREATION' }
-  | { type: 'LOAD_TASKS'; tasks: Task[] };
+  | { type: 'LOAD_TASKS'; tasks: Task[] }
+  | { type: 'RESET_STATE' };
 
 const initialState: TaskState = {
   tasks: [],
@@ -33,6 +34,7 @@ const initialState: TaskState = {
 function taskReducer(state: TaskState, action: TaskAction): TaskState {
   switch (action.type) {
     case 'ADD_TASK':
+      console.log('Adding task:', action.task);
       return {
         ...state,
         tasks: [...state.tasks, action.task],
@@ -40,6 +42,7 @@ function taskReducer(state: TaskState, action: TaskAction): TaskState {
         creationDates: null,
       };
     case 'UPDATE_TASK':
+      console.log('Updating task:', action.task);
       return {
         ...state,
         tasks: state.tasks.map(task =>
@@ -47,6 +50,7 @@ function taskReducer(state: TaskState, action: TaskAction): TaskState {
         ),
       };
     case 'DELETE_TASK':
+      console.log('Deleting task:', action.taskId);
       return {
         ...state,
         tasks: state.tasks.filter(task => task.id !== action.taskId),
@@ -77,10 +81,13 @@ function taskReducer(state: TaskState, action: TaskAction): TaskState {
         creationDates: null,
       };
     case 'LOAD_TASKS':
+      console.log('Loading tasks into state:', action.tasks);
       return {
         ...state,
         tasks: action.tasks,
       };
+    case 'RESET_STATE':
+      return initialState;
     default:
       return state;
   }

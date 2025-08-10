@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../types/Task';
 import { getTaskColor, getTaskTextColor } from '../utils/taskUtils';
 import { formatDate, getDaysBetween, isSameDay } from '../utils/dateUtils';
+import { TaskTooltip } from './TaskTooltip';
 
 interface TaskBarProps {
   task: Task;
@@ -32,6 +33,8 @@ export function TaskBar({
   const [resizeStartX, setResizeStartX] = useState(0);
   const [originalDates, setOriginalDates] = useState<{ start: Date; end: Date } | null>(null);
   const [isDraggingTask, setIsDraggingTask] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   const {
     attributes,
@@ -66,8 +69,8 @@ export function TaskBar({
   const taskDays = getDaysBetween(task.startDate, task.endDate);
   const taskDuration = taskDays.length;
 
-  // Calculate the width based on the number of days the task spans
-  const taskWidth = taskDuration * dayWidth - 8; // 8px for padding
+  // Each task bar fills the full width of one day cell
+  const taskWidth = dayWidth;
 
   const handleResizeStart = (edge: 'start' | 'end', e: React.MouseEvent) => {
     e.stopPropagation();
@@ -81,6 +84,7 @@ export function TaskBar({
       moveEvent.stopPropagation();
       if (!originalDates) return;
       
+      // For single-day task bars, resize by moving the entire task
       const deltaX = moveEvent.clientX - resizeStartX;
       const daysDelta = Math.round(deltaX / dayWidth);
       
@@ -120,73 +124,116 @@ export function TaskBar({
   };
 
   const handleTaskClick = (e: React.MouseEvent) => {
-    if (isResizing) return;
-    if (isDraggingTask) return;
+    if (isResizing || isDraggingTask || isDragging) return;
     e.stopPropagation();
     onTaskEdit(task);
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (isResizing || isDraggingTask) return;
+    e.stopPropagation();
+    setTooltipPosition({ x: e.clientX, y: e.clientY });
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowTooltip(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (showTooltip) {
+      e.stopPropagation();
+      setTooltipPosition({ x: e.clientX, y: e.clientY });
+    }
   };
 
   // Don't show drag listeners when resizing
   const dragListeners = isResizing !== null ? {} : listeners;
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...dragListeners}
-      {...attributes}
-      className={`
-        absolute top-1 z-10 h-7 rounded-md px-2 text-xs font-medium flex items-center
-        transition-all duration-150 shadow-sm hover:shadow-md select-none group
-        ${getTaskColor(task.category)} ${getTaskTextColor(task.category)}
-        ${isDragging ? 'opacity-60 scale-105 z-50' : ''}
-        ${isFirstDay ? 'rounded-l-md' : 'rounded-l-none'}
-        ${isLastDay ? 'rounded-r-md' : 'rounded-r-none'}
-        ${isResizing ? 'cursor-ew-resize z-30' : isDraggingTask ? 'cursor-grabbing' : 'cursor-grab'}
-      `}
-      style={{ 
-        ...style, 
-        width: `${taskWidth}px`,
-        minWidth: '60px',
-      }}
-      title={`${task.title} (${task.category})\nClick to edit • Drag edges to resize • Drag to move`}
-      onClick={handleTaskClick}
-    >
-      {/* Left resize handle */}
-      {isFirstDay && (
-        <div
-          className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-black hover:bg-opacity-30 rounded-l-md transition-all z-50"
-          onMouseDown={(e) => handleResizeStart('start', e)}
-          onMouseUp={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          title="Drag to adjust start date"
-        />
-      )}
-      
-      <span className="truncate flex-1 pointer-events-none">{task.title}</span>
-      
-      {/* Right resize handle */}
-      {isLastDay && (
-        <div
-          className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-black hover:bg-opacity-30 rounded-r-md transition-all z-50"
-          onMouseDown={(e) => handleResizeStart('end', e)}
-          onMouseUp={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          title="Drag to adjust end date"
-        />
-      )}
-    </div>
+    <>
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...dragListeners}
+        {...attributes}
+        className={`
+          absolute top-1 z-10 h-7 rounded-md px-2 text-xs font-medium flex items-center
+          transition-all duration-150 shadow-sm hover:shadow-md select-none group
+          ${getTaskColor(task.category)} ${getTaskTextColor(task.category)}
+          ${isDragging ? 'opacity-60 scale-105 z-50' : ''}
+          ${taskDuration === 1 ? 'rounded-md' : ''}
+          ${isFirstDay && taskDuration > 1 ? 'rounded-l-md' : 'rounded-l-none'}
+          ${isLastDay && taskDuration > 1 ? 'rounded-r-md' : 'rounded-r-none'}
+          ${!isFirstDay && taskDuration > 1 ? 'rounded-l-none rounded-r-none' : ''}
+          ${isResizing ? 'cursor-ew-resize z-30' : isDraggingTask ? 'cursor-grabbing' : 'cursor-grab'}
+        `}
+        style={{ 
+          ...style, 
+          width: '100%', // Fill the full day cell width
+          minWidth: '60px',
+        }}
+        onClick={handleTaskClick}
+        onMouseDown={(e) => {
+          // Always stop propagation for task bar mouse events
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onMouseMove={handleMouseMove}
+        onMouseUp={(e) => {
+          // Always stop propagation for task bar mouse events
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+      >
+        {/* Left resize handle */}
+        {isFirstDay && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-black hover:bg-opacity-30 rounded-l-md transition-all z-50"
+            onMouseDown={(e) => handleResizeStart('start', e)}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            title="Drag to adjust start date"
+          />
+        )}
+        
+        <span className={`truncate flex-1 pointer-events-none ${!isFirstDay ? 'opacity-0' : ''}`}>
+          {task.title}
+        </span>
+        
+        {/* Right resize handle */}
+        {isLastDay && (
+          <div
+            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-black hover:bg-opacity-30 rounded-r-md transition-all z-50"
+            onMouseDown={(e) => handleResizeStart('end', e)}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            title="Drag to adjust end date"
+          />
+        )}
+      </div>
+
+      {/* Custom Tooltip */}
+      <TaskTooltip
+        task={task}
+        isVisible={showTooltip && !isDragging && !isResizing}
+        position={tooltipPosition}
+      />
+    </>
   );
 }

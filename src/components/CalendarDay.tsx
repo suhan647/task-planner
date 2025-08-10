@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { CalendarDate, Task } from '../types/Task';
 import { TaskBar } from './TaskBar';
@@ -17,6 +17,8 @@ interface CalendarDayProps {
   dayWidth: number;
   onTaskEdit: (task: Task) => void;
   onTaskResize: (task: Task, newStartDate: Date, newEndDate: Date) => void;
+  isDragging?: boolean;
+  currentDropTarget?: Date | null;
 }
 
 export function CalendarDay({ 
@@ -31,7 +33,9 @@ export function CalendarDay({
   calendarStartDate,
   dayWidth, 
   onTaskEdit,
-  onTaskResize
+  onTaskResize,
+  isDragging = false,
+  currentDropTarget
 }: CalendarDayProps) {
   const cellRef = useRef<HTMLDivElement>(null);
   const [isDraggingTask, setIsDraggingTask] = useState(false);
@@ -46,16 +50,23 @@ export function CalendarDay({
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    if (e.button !== 0 || isDraggingTask) return;
+    if (e.button !== 0 || isDraggingTask || isDragging) return;
     
     onSelectionStart(date.date);
-  }, [date.date, isDraggingTask, onSelectionStart]);
+  }, [date.date, isDraggingTask, isDragging, onSelectionStart]);
 
   const handleMouseEnter = useCallback(() => {
-    if (isSelecting && !isDraggingTask) {
+    if (isSelecting && !isDraggingTask && !isDragging) {
       onSelectionUpdate(date.date);
     }
-  }, [isSelecting, isDraggingTask, date.date, onSelectionUpdate]);
+  }, [isSelecting, isDraggingTask, isDragging, date.date, onSelectionUpdate]);
+
+  // Reset local dragging state when global dragging state changes
+  useEffect(() => {
+    if (!isDragging) {
+      setIsDraggingTask(false);
+    }
+  }, [isDragging]);
 
   // Filter tasks that span this day
   const dayTasks = tasks.filter(task => {
@@ -63,16 +74,11 @@ export function CalendarDay({
     return taskDays.some(taskDay => isSameDay(taskDay, date.date));
   });
 
-  // Calculate task positions - only render the first segment of multi-day tasks
+  // Render task bars for each day the task spans
   const taskBars = dayTasks.map((task, index) => {
     const taskDays = getDaysBetween(task.startDate, task.endDate);
     const isFirstDay = isSameDay(task.startDate, date.date);
     const isLastDay = isSameDay(task.endDate, date.date);
-    
-    // Only render the task bar on the first day of the task to avoid duplicates
-    if (!isFirstDay) {
-      return null;
-    }
     
     return (
       <TaskBar
@@ -88,7 +94,7 @@ export function CalendarDay({
         onDragEnd={() => setIsDraggingTask(false)}
       />
     );
-  }).filter(Boolean); // Remove null entries
+  });
 
   return (
     <div
@@ -98,6 +104,7 @@ export function CalendarDay({
           cellRef.current = node;
         }
       }}
+      data-day={formatDate(date.date)}
       className={`
         relative h-28 border-r border-b border-gray-200 cursor-pointer select-none
         transition-colors duration-150
@@ -105,6 +112,7 @@ export function CalendarDay({
         ${date.isToday ? 'bg-blue-100 border-blue-300' : ''}
         ${isOver ? 'bg-green-100' : ''}
         ${isInSelection ? 'bg-blue-200 border-blue-400' : ''}
+        ${currentDropTarget === date.date ? 'bg-blue-300 border-blue-500' : ''}
       `}
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
@@ -118,7 +126,7 @@ export function CalendarDay({
       </div>
       
       {/* Task bars container */}
-      <div className="absolute top-8 left-1 right-1 space-y-1">
+      <div className="absolute top-8 left-0 right-0 space-y-1">
         {taskBars}
       </div>
     </div>

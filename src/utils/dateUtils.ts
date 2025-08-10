@@ -31,9 +31,14 @@ export function isSameDay(date1: Date, date2: Date): boolean {
 
 export function getDaysBetween(startDate: Date, endDate: Date): Date[] {
   const days: Date[] = [];
-  let currentDate = new Date(startDate);
   
-  while (currentDate <= endDate) {
+  // Normalize dates to start of day to ensure accurate comparison
+  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  
+  let currentDate = new Date(start);
+  
+  while (currentDate <= end) {
     days.push(new Date(currentDate));
     currentDate = addDays(currentDate, 1);
   }
@@ -77,6 +82,42 @@ export function isDateInTimeFrame(date: Date, timeFrame: 'week' | 'twoWeeks' | '
       return true;
   }
   
-  // Show tasks that start within the timeframe from today
-  return date >= now && date <= cutoffDate;
+  // Show tasks that start, end, or are ongoing within the timeframe from today
+  return date <= cutoffDate;
+}
+
+export function isTaskInTimeFrame(taskStartDate: Date, taskEndDate: Date, timeFrame: 'week' | 'twoWeeks' | 'threeWeeks'): boolean {
+  const now = new Date();
+  let cutoffDate: Date;
+  
+  switch (timeFrame) {
+    case 'week':
+      cutoffDate = addDays(now, 7);
+      break;
+    case 'twoWeeks':
+      cutoffDate = addDays(now, 14);
+      break;
+    case 'threeWeeks':
+      cutoffDate = addDays(now, 21);
+      break;
+    default:
+      return true;
+  }
+  
+  // Normalize dates to start of day for comparison
+  const normalizedNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const normalizedCutoff = new Date(cutoffDate.getFullYear(), cutoffDate.getMonth(), cutoffDate.getDate());
+  const normalizedTaskStart = new Date(taskStartDate.getFullYear(), taskStartDate.getMonth(), taskStartDate.getDate());
+  const normalizedTaskEnd = new Date(taskEndDate.getFullYear(), taskEndDate.getMonth(), taskEndDate.getDate());
+  
+  // Check if task overlaps with the timeframe
+  // Task is in timeframe if:
+  // 1. Task starts within the timeframe, OR
+  // 2. Task ends within the timeframe, OR  
+  // 3. Task spans across the timeframe
+  return (
+    (normalizedTaskStart >= normalizedNow && normalizedTaskStart <= normalizedCutoff) ||
+    (normalizedTaskEnd >= normalizedNow && normalizedTaskEnd <= normalizedCutoff) ||
+    (normalizedTaskStart <= normalizedNow && normalizedTaskEnd >= normalizedCutoff)
+  );
 }
