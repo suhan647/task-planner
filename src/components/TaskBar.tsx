@@ -36,7 +36,7 @@ export function TaskBar({
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [isHoveringResize, setIsHoveringResize] = useState(false);
-  const [mouseDownOnResize, setMouseDownOnResize] = useState(false);
+  const [activeResizeHandle, setActiveResizeHandle] = useState<'start' | 'end' | null>(null);
 
   const {
     attributes,
@@ -50,7 +50,7 @@ export function TaskBar({
       type: 'task',
       task,
     },
-    disabled: isResizing !== null || isHoveringResize || mouseDownOnResize,
+    disabled: isResizing !== null || activeResizeHandle !== null,
   });
 
   // Handle drag start/end
@@ -78,9 +78,8 @@ export function TaskBar({
     e.stopPropagation();
     e.preventDefault();
     
-    setMouseDownOnResize(true);
-    // Prevent any drag operations
-    setIsDraggingTask(false);
+    console.log('Starting resize for edge:', edge);
+    setActiveResizeHandle(edge);
     setIsResizing(edge);
     setResizeStartX(e.clientX);
     setOriginalDates({ start: new Date(task.startDate), end: new Date(task.endDate) });
@@ -88,11 +87,12 @@ export function TaskBar({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       moveEvent.preventDefault();
       moveEvent.stopPropagation();
+      console.log('Resizing...');
       if (!originalDates) return;
       
-      // For single-day task bars, resize by moving the entire task
       const deltaX = moveEvent.clientX - resizeStartX;
       const daysDelta = Math.round(deltaX / dayWidth);
+      console.log('Days delta:', daysDelta);
       
       let newStartDate = new Date(originalDates.start);
       let newEndDate = new Date(originalDates.end);
@@ -119,10 +119,10 @@ export function TaskBar({
     const handleMouseUp = (upEvent: MouseEvent) => {
       upEvent.preventDefault();
       upEvent.stopPropagation();
+      console.log('Ending resize');
       setIsResizing(null);
+      setActiveResizeHandle(null);
       setOriginalDates(null);
-      setIsHoveringResize(false);
-      setMouseDownOnResize(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -132,7 +132,7 @@ export function TaskBar({
   };
 
   const handleTaskClick = (e: React.MouseEvent) => {
-    if (isResizing || isDraggingTask || isDragging || isHoveringResize || mouseDownOnResize) return;
+    if (isResizing || isDraggingTask || isDragging || activeResizeHandle) return;
     e.stopPropagation();
     onTaskEdit(task);
   };
@@ -160,7 +160,7 @@ export function TaskBar({
   };
 
   // Don't show drag listeners when resizing or mouse is down on resize handle
-  const dragListeners = (isResizing !== null || isHoveringResize || mouseDownOnResize) ? {} : listeners;
+  const dragListeners = (isResizing !== null || activeResizeHandle !== null) ? {} : listeners;
 
   return (
     <>
@@ -178,7 +178,7 @@ export function TaskBar({
           ${isFirstDay && taskDuration > 1 ? 'rounded-l-md' : 'rounded-l-none'}
           ${isLastDay && taskDuration > 1 ? 'rounded-r-md' : 'rounded-r-none'}
           ${!isFirstDay && taskDuration > 1 ? 'rounded-l-none rounded-r-none' : ''}
-          ${isResizing || isHoveringResize || mouseDownOnResize ? 'cursor-ew-resize z-30' : isDraggingTask ? 'cursor-grabbing' : 'cursor-grab'}
+          ${activeResizeHandle ? 'cursor-ew-resize z-30' : isDraggingTask ? 'cursor-grabbing' : 'cursor-grab'}
         `}
         style={{ 
           ...style, 
@@ -196,26 +196,8 @@ export function TaskBar({
         {/* Left resize handle */}
         {isFirstDay && (
           <div
-            className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-transparent hover:bg-black hover:bg-opacity-20 rounded-l-md transition-all z-50 resize-handle left"
+            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize bg-transparent hover:bg-white hover:bg-opacity-30 rounded-l-md transition-all z-50"
             onMouseDown={(e) => handleResizeStart('start', e)}
-            onMouseEnter={(e) => {
-              e.stopPropagation();
-              setIsHoveringResize(true);
-            }}
-            onMouseLeave={(e) => {
-              e.stopPropagation();
-              if (!isResizing) {
-                setIsHoveringResize(false);
-              }
-            }}
-            onMouseUp={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
             title="Drag to adjust start date"
           />
         )}
@@ -227,26 +209,8 @@ export function TaskBar({
         {/* Right resize handle */}
         {isLastDay && (
           <div
-            className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-transparent hover:bg-black hover:bg-opacity-20 rounded-r-md transition-all z-50 resize-handle right"
+            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize bg-transparent hover:bg-white hover:bg-opacity-30 rounded-r-md transition-all z-50"
             onMouseDown={(e) => handleResizeStart('end', e)}
-            onMouseEnter={(e) => {
-              e.stopPropagation();
-              setIsHoveringResize(true);
-            }}
-            onMouseLeave={(e) => {
-              e.stopPropagation();
-              if (!isResizing) {
-                setIsHoveringResize(false);
-              }
-            }}
-            onMouseUp={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
             title="Drag to adjust end date"
           />
         )}
@@ -255,7 +219,7 @@ export function TaskBar({
       {/* Custom Tooltip */}
       <TaskTooltip
         task={task}
-        isVisible={showTooltip && !isDragging && !isResizing && !mouseDownOnResize}
+        isVisible={showTooltip && !isDragging && !isResizing && !activeResizeHandle}
         position={tooltipPosition}
       />
     </>
