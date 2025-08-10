@@ -187,6 +187,8 @@ export function TaskBar({
         }}
         onClick={handleTaskClick}
         onMouseDown={(e) => {
+        }
+        }
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
